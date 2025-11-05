@@ -510,21 +510,35 @@ def main():
         map_data = st_folium(m, width=700, height=400)
         
         # Actualizar coordenadas si se hizo clic en el mapa
-        if map_data['last_clicked'] is not None:
-            st.session_state.selected_lat = map_data['last_clicked']['lat']
-            st.session_state.selected_lon = map_data['last_clicked']['lng']
-            st.rerun()
+        if map_data is not None and map_data.get('last_clicked') is not None:
+            clicked_lat = map_data['last_clicked']['lat']
+            clicked_lon = map_data['last_clicked']['lng']
+            
+            # Asegurarse de que los valores estén dentro del rango válido
+            clicked_lat = max(-90.0, min(90.0, clicked_lat))
+            clicked_lon = max(-180.0, min(180.0, clicked_lon))
+            
+            # Solo actualizar si los valores han cambiado significativamente
+            if (abs(clicked_lat - st.session_state.selected_lat) > 0.001 or 
+                abs(clicked_lon - st.session_state.selected_lon) > 0.001):
+                st.session_state.selected_lat = clicked_lat
+                st.session_state.selected_lon = clicked_lon
+                st.rerun()
         
         st.subheader("Ingresar datos del sismo")
         
         col1, col2 = st.columns(2)
+        
+        # Asegurar que los valores estén siempre en rango válido
+        safe_lat = max(-90.0, min(90.0, st.session_state.selected_lat))
+        safe_lon = max(-180.0, min(180.0, st.session_state.selected_lon))
         
         with col1:
             latitude = st.number_input(
                 "Latitud",
                 min_value=-90.0,
                 max_value=90.0,
-                value=float(st.session_state.selected_lat),
+                value=safe_lat,
                 step=0.01,
                 help="Selecciona en el mapa o ingresa manualmente"
             )
@@ -532,7 +546,7 @@ def main():
                 "Longitud",
                 min_value=-180.0,
                 max_value=180.0,
-                value=float(st.session_state.selected_lon),
+                value=safe_lon,
                 step=0.01,
                 help="Selecciona en el mapa o ingresa manualmente"
             )
