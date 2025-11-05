@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import geopandas as gpd
 from folium.plugins import HeatMap
-from streamlit_folium import folium_static
+from streamlit_folium import folium_static, st_folium
 import folium
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -320,23 +320,23 @@ def train_tsunami_model():
 
 # Main application
 def main():
-    st.title("Earthquake Analysis and Prediction")
+    st.title("Análisis y Predicción de Terremotos")
 
     # Create tabs
-    tab1, tab2 = st.tabs(["Analysis", "Prediccion Tsunami"])
+    tab1, tab2 = st.tabs(["Análisis", "Predicción Tsunami"])
 
     # Analysis Tab
     with tab1:
-        st.header("Earthquake Analysis Dashboard")
+        st.header("Panel de Análisis de Terremotos")
         df = load_data()
         df['date_time'] = pd.to_datetime(df['date_time'])
 
         # Sidebar for filters
-        st.sidebar.header("Filters")
-        date_range = st.sidebar.date_input("Select Date Range", [df['date_time'].min(), df['date_time'].max()])
-        min_magnitude = st.sidebar.slider("Minimum Magnitude", float(df['magnitude'].min()), float(df['magnitude'].max()), 6.5)
-        max_depth = st.sidebar.slider("Maximum Depth (km)", 0, int(df['depth'].max()), int(df['depth'].max()))
-        tsunami_filter = st.sidebar.selectbox("Tsunami Risk", options=["All", "With Tsunami Risk", "Without Tsunami Risk"], index=0)
+        st.sidebar.header("Filtros")
+        date_range = st.sidebar.date_input("Seleccionar Rango de Fechas", [df['date_time'].min(), df['date_time'].max()])
+        min_magnitude = st.sidebar.slider("Magnitud Mínima", float(df['magnitude'].min()), float(df['magnitude'].max()), 6.5)
+        max_depth = st.sidebar.slider("Profundidad Máxima (km)", 0, int(df['depth'].max()), int(df['depth'].max()))
+        tsunami_filter = st.sidebar.selectbox("Riesgo de Tsunami", options=["Todos", "Con Riesgo de Tsunami", "Sin Riesgo de Tsunami"], index=0)
 
         # Apply filters
         filtered_df = df[(df['date_time'] >= pd.Timestamp(date_range[0])) & 
@@ -345,38 +345,38 @@ def main():
                          (df['depth'] <= max_depth)]
         
         # Apply tsunami filter
-        if tsunami_filter == "With Tsunami Risk":
+        if tsunami_filter == "Con Riesgo de Tsunami":
             filtered_df = filtered_df[filtered_df['tsunami'] == 1]
-        elif tsunami_filter == "Without Tsunami Risk":
+        elif tsunami_filter == "Sin Riesgo de Tsunami":
             filtered_df = filtered_df[filtered_df['tsunami'] == 0]
 
         # Display key metrics
-        st.header("Key Metrics")
+        st.header("Métricas Clave")
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Total Earthquakes", len(filtered_df))
-        col2.metric("Average Magnitude", round(filtered_df['magnitude'].mean(), 2))
-        col3.metric("Max Magnitude", filtered_df['magnitude'].max())
-        col4.metric("Earthquakes with Tsunami", filtered_df['tsunami'].sum())
+        col1.metric("Total Terremotos", len(filtered_df))
+        col2.metric("Magnitud Promedio", round(filtered_df['magnitude'].mean(), 2))
+        col3.metric("Magnitud Máxima", filtered_df['magnitude'].max())
+        col4.metric("Terremotos con Tsunami", filtered_df['tsunami'].sum())
 
         # Display heatmap
-        st.header("Geospatial Insights")
+        st.header("Perspectivas Geoespaciales")
         m = folium.Map(location=[filtered_df['latitude'].mean(), filtered_df['longitude'].mean()], zoom_start=1)
         heat_data = filtered_df[['latitude', 'longitude']].values.tolist()
         HeatMap(data=heat_data, radius=10, blur=15, max_zoom=1).add_to(m)
         folium_static(m)
 
-        st.subheader("High Seismicity Zones")
+        st.subheader("Zonas de Alta Sismicidad")
         m2 = folium.Map(location=[filtered_df['latitude'].mean(), filtered_df['longitude'].mean()], zoom_start=1)
         for _, row in filtered_df.iterrows():
             folium.Marker(
                 location=[row['latitude'], row['longitude']],
                 icon=folium.Icon(color='red' if row['magnitude'] >= 7 else 'orange', icon='info-sign'),
-                popup=f"Location: {row['location']}<br>Magnitude: {row['magnitude']}<br>Depth: {row['depth']} km<br>Tsunami: {'Yes' if row['tsunami'] == 1 else 'No'}"
+                popup=f"Ubicación: {row['location']}<br>Magnitud: {row['magnitude']}<br>Profundidad: {row['depth']} km<br>Tsunami: {'Sí' if row['tsunami'] == 1 else 'No'}"
             ).add_to(m2)
         folium_static(m2)
 
         # Section 3: Earthquake Counts by Continent and Country
-        st.header("Earthquake Counts by Continent and Country")
+        st.header("Conteo de Terremotos por Continente y País")
         
         # Filtrar "Ocean" ya que no es ni país ni continente
         continent_country_df = filtered_df[
@@ -385,55 +385,86 @@ def main():
         ].groupby(['continent', 'country']).size().reset_index(name='count')
 
         # Bar chart for countries
-        st.subheader("Top 10 Countries with Highest Earthquake Counts")
+        st.subheader("Top 10 Países con Mayor Cantidad de Terremotos")
         top_countries = continent_country_df.sort_values(by='count', ascending=False).head(10)
-        fig = px.bar(top_countries, x='country', y='count', color='continent', title="Top Countries by Earthquake Count")
+        fig = px.bar(top_countries, x='country', y='count', color='continent', title="Países con Mayor Actividad Sísmica")
         st.plotly_chart(fig)
 
         # Pie chart for continents
-        st.subheader("Earthquake Distribution by Continent")
+        st.subheader("Distribución de Terremotos por Continente")
         continent_counts = continent_country_df.groupby('continent')['count'].sum().reset_index()
-        fig = px.pie(continent_counts, values='count', names='continent', title="Earthquake Counts by Continent")
+        fig = px.pie(continent_counts, values='count', names='continent', title="Terremotos por Continente")
         st.plotly_chart(fig)
 
         # Section 4: Magnitude Insights
-        st.header("Magnitude Insights")
+        st.header("Análisis de Magnitud")
 
         # Histogram for magnitude frequencies
-        st.subheader("Frequency of Different Magnitudes")
-        fig = px.histogram(filtered_df, x='magnitude', nbins=20, title="Magnitude Frequency Distribution")
+        st.subheader("Frecuencia de Diferentes Magnitudes")
+        fig = px.histogram(filtered_df, x='magnitude', nbins=20, title="Distribución de Frecuencia de Magnitud")
         st.plotly_chart(fig)
 
-        # Scatter plot for depth vs. magnitude
-        st.subheader("Depth vs. Magnitude")
-        fig = px.scatter(filtered_df, x='magnitude', y='depth', color='tsunami', size='sig', title="Depth vs. Magnitude (Colored by Tsunami Risk)")
-        st.plotly_chart(fig)
+        # Depth vs. Magnitude Analysis
+        st.subheader("Profundidad vs. Magnitud")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Density Contour Plot
+            st.markdown("**Gráfico de Contorno de Densidad**")
+            fig_contour = px.density_contour(
+                filtered_df, 
+                x='magnitude', 
+                y='depth',
+                title="Profundidad vs Magnitud - Contornos de Densidad",
+                labels={'magnitude': 'Magnitud', 'depth': 'Profundidad (km)'},
+                marginal_x="histogram",
+                marginal_y="histogram"
+            )
+            # No aplicar update_traces ya que causa conflictos con histogramas
+            st.plotly_chart(fig_contour, use_container_width=True)
+        
+        with col2:
+            # Scatter with Regression Line
+            st.markdown("**Dispersión con Línea de Tendencia**")
+            fig_scatter = px.scatter(
+                filtered_df, 
+                x='magnitude', 
+                y='depth',
+                color='tsunami',
+                size='sig',
+                trendline="ols",
+                title="Profundidad vs Magnitud - Análisis de Regresión",
+                labels={'magnitude': 'Magnitud', 'depth': 'Profundidad (km)'},
+                opacity=0.6
+            )
+            st.plotly_chart(fig_scatter, use_container_width=True)
 
         # Distance to Ocean Analysis
-        st.header("Distance to Ocean Analysis")
+        st.header("Análisis de Distancia al Océano")
         
         # Scatter plot: Distance to Ocean vs Tsunami Risk
-        st.subheader("Distance to Ocean vs Tsunami Risk")
+        st.subheader("Distancia al Océano vs Riesgo de Tsunami")
         fig = px.scatter(filtered_df, x='distance_to_ocean', y='magnitude', 
                         color='tsunami', size='sig',
-                        title="Distance to Ocean vs Magnitude (Colored by Tsunami Risk)",
-                        labels={'distance_to_ocean': 'Distance to Ocean (km)', 'magnitude': 'Magnitude'})
+                        title="Distancia al Océano vs Magnitud (Coloreado por Riesgo de Tsunami)",
+                        labels={'distance_to_ocean': 'Distancia al Océano (km)', 'magnitude': 'Magnitud'})
         st.plotly_chart(fig)
         
         # Box plot: Distance to Ocean by Tsunami Risk
-        st.subheader("Distance to Ocean Distribution by Tsunami Risk")
+        st.subheader("Distribución de Distancia al Océano por Riesgo de Tsunami")
         # Create distance ranges (bins of 50km)
         filtered_df['distance_range'] = (filtered_df['distance_to_ocean'] // 50) * 50
         distance_counts = filtered_df.groupby('distance_range').size().reset_index(name='count')
         distance_counts['distance_label'] = distance_counts['distance_range'].astype(str) + '-' + (distance_counts['distance_range'] + 50).astype(str) + ' km'
         fig = px.bar(distance_counts, x='count', y='distance_label', 
                     orientation='h',
-                    title="Earthquake Count by Distance to Ocean (50km intervals)",
-                    labels={'count': 'Number of Earthquakes', 'distance_label': 'Distance to Ocean'})
+                    title="Cantidad de Terremotos por Distancia al Océano (intervalos de 50km)",
+                    labels={'count': 'Número de Terremotos', 'distance_label': 'Distancia al Océano'})
         st.plotly_chart(fig)
 
         # Section 5: Detailed Earthquake Table
-        st.header("Earthquake encountered lists")
+        st.header("Listado de Terremotos Encontrados")
         st.dataframe(filtered_df[['magnitude', 'date_time', 'location', 'depth', 'tsunami', 'distance_to_ocean']].sort_values(by='date_time', ascending=False))
 
     # Tsunami Prediction Tab
@@ -451,50 +482,85 @@ def main():
             st.exception(e)
             st.stop()
         
+        # Mapa interactivo para seleccionar ubicación
+        st.subheader("📍 Seleccionar Ubicación del Sismo")
+        st.info("👇 Haz clic en el mapa para seleccionar la ubicación del terremoto")
+        
+        # Inicializar coordenadas en session_state si no existen
+        if 'selected_lat' not in st.session_state:
+            st.session_state.selected_lat = 0.0
+            st.session_state.selected_lon = 0.0
+        
+        # Crear mapa centrado en el mundo
+        map_center = [st.session_state.selected_lat, st.session_state.selected_lon]
+        m = folium.Map(location=map_center, zoom_start=2)
+        
+        # Añadir marcador si hay coordenadas seleccionadas
+        if st.session_state.selected_lat != 0.0 or st.session_state.selected_lon != 0.0:
+            folium.Marker(
+                location=[st.session_state.selected_lat, st.session_state.selected_lon],
+                popup=f"Lat: {st.session_state.selected_lat:.4f}<br>Lon: {st.session_state.selected_lon:.4f}",
+                icon=folium.Icon(color='red', icon='info-sign')
+            ).add_to(m)
+        
+        # Añadir funcionalidad de clic
+        m.add_child(folium.LatLngPopup())
+        
+        # Mostrar mapa y capturar clics
+        map_data = st_folium(m, width=700, height=400)
+        
+        # Actualizar coordenadas si se hizo clic en el mapa
+        if map_data['last_clicked'] is not None:
+            st.session_state.selected_lat = map_data['last_clicked']['lat']
+            st.session_state.selected_lon = map_data['last_clicked']['lng']
+            st.rerun()
+        
         st.subheader("Ingresar datos del sismo")
         
         col1, col2 = st.columns(2)
         
         with col1:
             latitude = st.number_input(
-                "Latitud", 
-                min_value=-90.0, 
-                max_value=90.0, 
-                value=0.0, 
-                step=0.01
+                "Latitud",
+                min_value=-90.0,
+                max_value=90.0,
+                value=float(st.session_state.selected_lat),
+                step=0.01,
+                help="Selecciona en el mapa o ingresa manualmente"
             )
             longitude = st.number_input(
-                "Longitud", 
-                min_value=-180.0, 
-                max_value=180.0, 
-                value=0.0, 
-                step=0.01
+                "Longitud",
+                min_value=-180.0,
+                max_value=180.0,
+                value=float(st.session_state.selected_lon),
+                step=0.01,
+                help="Selecciona en el mapa o ingresa manualmente"
             )
             magnitude = st.number_input(
-                "Magnitud", 
-                min_value=0.0, 
-                max_value=10.0, 
-                value=5.0, 
+                "Magnitud",
+                min_value=0.0,
+                max_value=10.0,
+                value=5.0,
                 step=0.1
             )
         
         with col2:
             depth = st.number_input(
-                "Profundidad (km)", 
-                min_value=0.0, 
-                max_value=700.0, 
-                value=10.0, 
+                "Profundidad (km)",
+                min_value=0.0,
+                max_value=700.0,
+                value=10.0,
                 step=1.0
             )
             magType = st.selectbox(
-                "Tipo de Magnitud", 
+                "Tipo de Magnitud",
                 ["mb", "md", "ml", "ms", "mw", "mwb", "mwc", "mwr", "mww"]
             )
             significance = st.number_input(
-                "Significancia", 
-                min_value=0, 
-                max_value=2000, 
-                value=500, 
+                "Significancia",
+                min_value=0,
+                max_value=2000,
+                value=500,
                 step=10
             )
         
