@@ -568,14 +568,37 @@ def main():
             )
             magType = st.selectbox(
                 "Tipo de Magnitud",
-                ["mb", "md", "ml", "ms", "mw", "mwb", "mwc", "mwr", "mww"]
+                ["mb", "md", "ml", "ms", "mw", "mwb", "mwc", "mwr", "mww"],
+                help="""**Guía de selección:**
+                
+• **Sismos grandes (>7.0)**: mw, mww, mwc (más precisas)
+• **Sismos profundos**: mb (ondas internas)
+• **Sismos locales**: ml (escala Richter)
+• **Sismos superficiales**: ms (ondas superficiales)
+
+**Tipos más comunes:**
+- mww: Momento sísmico (W-phase) - Recomendado
+- mwc: Momento sísmico (centroide)
+- mw: Momento sísmico estándar
+- mb: Magnitud de ondas internas
+                """
             )
             significance = st.number_input(
                 "Significancia",
                 min_value=0,
                 max_value=2000,
                 value=500,
-                step=10
+                step=10,
+                help="""**Índice de importancia del sismo:**
+
+• **0-200**: Sismos menores, poco significativos
+• **200-500**: Significancia moderada
+• **500-800**: Sismos importantes
+• **800-1200**: Muy significativos, posible daño regional
+• **>1200**: Extremadamente significativos, daño extenso
+
+La significancia combina magnitud, población afectada y ubicación.
+                """
             )
         
         if st.button("Predecir Riesgo de Tsunami", type="primary"):
