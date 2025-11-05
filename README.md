@@ -4,7 +4,7 @@ Aplicación web interactiva para el análisis de terremotos y predicción de rie
 
 ## 🚀 Demo en Vivo
 
-👉 [Ver aplicación en Streamlit Cloud](https://tu-app.streamlit.app) _(actualiza este enlace después del despliegue)_
+👉 [Ver aplicación en Streamlit Cloud](https://tsunamy-risk-predictor.streamlit.app/) 
 
 ## 📊 Características
 
