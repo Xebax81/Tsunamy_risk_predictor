@@ -7,6 +7,7 @@ from folium.plugins import HeatMap
 from streamlit_folium import folium_static, st_folium
 import folium
 import numpy as np
+import altair as alt
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
@@ -320,10 +321,71 @@ def train_tsunami_model():
 
 # Main application
 def main():
-    st.title("Análisis y Predicción de Terremotos")
+    # Configurar página para usar todo el ancho
+    st.markdown("""
+        <style>
+        .main .block-container {
+            max-width: 95%;
+            padding-left: 2rem;
+            padding-right: 2rem;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Banner con imagen de fondo y título
+    st.markdown("""
+        <style>
+        .banner-container {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            background-image: url('app/static/images/jcr_content.jpg');
+            background-size: cover;
+            background-position: center;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .banner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+        }
+        .banner-title {
+            position: relative;
+            color: white;
+            font-size: 3em;
+            font-weight: bold;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            z-index: 1;
+            padding: 20px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Mostrar imagen de banner
+    st.image("images/jcr_content.jpg", use_container_width=True)
+    
+    # Título superpuesto
+    st.markdown("""
+        <div style='margin-top: -180px; margin-bottom: 50px; text-align: center;'>
+            <h1 style='color: white; font-size: 3em; text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.9); 
+                       background: rgba(0, 0, 0, 0.4); padding: 20px; border-radius: 10px; 
+                       display: inline-block;'>
+                Análisis de Terremotos y Predicción de Tsunami
+            </h1>
+        </div>
+    """, unsafe_allow_html=True)
 
     # Create tabs
-    tab1, tab2 = st.tabs(["Análisis", "Predicción Tsunami"])
+    tab1, tab2, tab3 = st.tabs(["Análisis", "Análisis de Modelos de Predicción", "Predicción Tsunami"])
 
     # Analysis Tab
     with tab1:
@@ -337,6 +399,18 @@ def main():
         min_magnitude = st.sidebar.slider("Magnitud Mínima", float(df['magnitude'].min()), float(df['magnitude'].max()), 6.5)
         max_depth = st.sidebar.slider("Profundidad Máxima (km)", 0, int(df['depth'].max()), int(df['depth'].max()))
         tsunami_filter = st.sidebar.selectbox("Riesgo de Tsunami", options=["Todos", "Con Riesgo de Tsunami", "Sin Riesgo de Tsunami"], index=0)
+        
+        # Logo y créditos en el sidebar
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### Datos proporcionados por")
+        st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/USGS_logo_green.svg/320px-USGS_logo_green.svg.png", width=200)
+        st.sidebar.markdown("""
+        <div style='text-align: center; font-size: 0.8em; color: #666;'>
+        <a href='https://earthquake.usgs.gov/' target='_blank' style='text-decoration: none; color: #666;'>
+        U.S. Geological Survey
+        </a>
+        </div>
+        """, unsafe_allow_html=True)
 
         # Apply filters
         filtered_df = df[(df['date_time'] >= pd.Timestamp(date_range[0])) & 
@@ -358,25 +432,63 @@ def main():
         col3.metric("Magnitud Máxima", filtered_df['magnitude'].max())
         col4.metric("Terremotos con Tsunami", filtered_df['tsunami'].sum())
 
-        # Display heatmap
+        # Display interactive map with Altair
         st.header("Perspectivas Geoespaciales")
-        m = folium.Map(location=[filtered_df['latitude'].mean(), filtered_df['longitude'].mean()], zoom_start=1)
-        heat_data = filtered_df[['latitude', 'longitude']].values.tolist()
-        HeatMap(data=heat_data, radius=10, blur=15, max_zoom=1).add_to(m)
-        folium_static(m)
+        
+        # Configuración de Altair para gráficos más grandes
+        alt.data_transformers.disable_max_rows()
 
-        st.subheader("Zonas de Alta Sismicidad")
-        m2 = folium.Map(location=[filtered_df['latitude'].mean(), filtered_df['longitude'].mean()], zoom_start=1)
-        for _, row in filtered_df.iterrows():
-            folium.Marker(
-                location=[row['latitude'], row['longitude']],
-                icon=folium.Icon(color='red' if row['magnitude'] >= 7 else 'orange', icon='info-sign'),
-                popup=f"Ubicación: {row['location']}<br>Magnitud: {row['magnitude']}<br>Profundidad: {row['depth']} km<br>Tsunami: {'Sí' if row['tsunami'] == 1 else 'No'}"
-            ).add_to(m2)
-        folium_static(m2)
+        # Preparar etiquetas descriptivas
+        filtered_df_map = filtered_df.copy()
+        filtered_df_map['riesgo_tsunami'] = filtered_df_map['tsunami'].map({0: 'Sin Riesgo', 1: 'Con Riesgo de Tsunami'})
 
-        # Section 3: Earthquake Counts by Continent and Country
-        st.header("Conteo de Terremotos por Continente y País")
+        # Mapa base del mundo
+        countries = alt.topo_feature('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json', 'countries')
+
+        background = alt.Chart(countries).mark_geoshape(
+            fill='lightgray',
+            stroke='white'
+        ).project('equalEarth').properties(
+            width=900,
+            height=500
+        )
+
+        # Capa de sismos (usando los datos ya filtrados)
+        sismos = alt.Chart(filtered_df_map).mark_circle(
+            opacity=0.7
+        ).encode(
+            longitude='longitude:Q',
+            latitude='latitude:Q',
+            color=alt.Color('riesgo_tsunami:N',
+                            scale=alt.Scale(domain=['Sin Riesgo', 'Con Riesgo de Tsunami'],
+                                           range=['#87CEEB', '#F44336']),
+                            title='Riesgo de Tsunami'),
+            size=alt.Size('magnitude:Q', scale=alt.Scale(range=[10, 200]), title='Magnitud'),
+            tooltip=[
+                alt.Tooltip('location:N', title='Ubicación'),
+                alt.Tooltip('magnitude:Q', title='Magnitud', format='.2f'),
+                alt.Tooltip('depth:Q', title='Profundidad (km)', format='.2f'),
+                alt.Tooltip('riesgo_tsunami:N', title='Riesgo de Tsunami')
+            ]
+        ).project('equalEarth').properties(
+            title={
+                "text": "Distribución Geográfica de Sismos y Riesgo de Tsunami",
+                "subtitle": "Color = Riesgo de Tsunami | Tamaño = Magnitud"
+            }
+        )
+
+        mapa_interactivo = (background + sismos).configure_view(
+            strokeWidth=0
+        ).configure_legend(
+            orient='bottom',
+            titleFontSize=12,
+            labelFontSize=11
+        )
+        
+        st.altair_chart(mapa_interactivo, use_container_width=True)
+
+        # Section 3: Earthquake Counts by Continent
+        st.header("Distribución de Terremotos por Continente")
         
         # Filtrar "Ocean" ya que no es ni país ni continente
         continent_country_df = filtered_df[
@@ -384,16 +496,9 @@ def main():
             (filtered_df['continent'] != 'Ocean')
         ].groupby(['continent', 'country']).size().reset_index(name='count')
 
-        # Bar chart for countries
-        st.subheader("Top 10 Países con Mayor Cantidad de Terremotos")
-        top_countries = continent_country_df.sort_values(by='count', ascending=False).head(10)
-        fig = px.bar(top_countries, x='country', y='count', color='continent', title="Países con Mayor Actividad Sísmica")
-        st.plotly_chart(fig)
-
         # Pie chart for continents
-        st.subheader("Distribución de Terremotos por Continente")
         continent_counts = continent_country_df.groupby('continent')['count'].sum().reset_index()
-        fig = px.pie(continent_counts, values='count', names='continent', title="Terremotos por Continente")
+        fig = px.pie(continent_counts, values='count', names='continent')
         st.plotly_chart(fig)
 
         # Section 4: Magnitude Insights
@@ -407,48 +512,40 @@ def main():
         # Depth vs. Magnitude Analysis
         st.subheader("Profundidad vs. Magnitud")
         
-        col1, col2 = st.columns(2)
+        # Preparar datos con tsunami como categórico
+        filtered_df_plot = filtered_df.copy()
+        filtered_df_plot['tsunami_label'] = filtered_df_plot['tsunami'].map({0: 'Sin Riesgo', 1: 'Con Riesgo'})
         
-        with col1:
-            # Density Contour Plot
-            st.markdown("**Gráfico de Contorno de Densidad**")
-            fig_contour = px.density_contour(
-                filtered_df, 
-                x='magnitude', 
-                y='depth',
-                title="Profundidad vs Magnitud - Contornos de Densidad",
-                labels={'magnitude': 'Magnitud', 'depth': 'Profundidad (km)'},
-                marginal_x="histogram",
-                marginal_y="histogram"
-            )
-            # No aplicar update_traces ya que causa conflictos con histogramas
-            st.plotly_chart(fig_contour, use_container_width=True)
-        
-        with col2:
-            # Scatter with Regression Line
-            st.markdown("**Dispersión con Línea de Tendencia**")
-            fig_scatter = px.scatter(
-                filtered_df, 
-                x='magnitude', 
-                y='depth',
-                color='tsunami',
-                size='sig',
-                trendline="ols",
-                title="Profundidad vs Magnitud - Análisis de Regresión",
-                labels={'magnitude': 'Magnitud', 'depth': 'Profundidad (km)'},
-                opacity=0.6
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
+        # Scatter with Regression Line
+        fig_scatter = px.scatter(
+            filtered_df_plot, 
+            x='magnitude', 
+            y='depth',
+            color='tsunami_label',
+            size='sig',
+            trendline="ols",
+            title="Profundidad vs Magnitud - Análisis de Regresión",
+            labels={'magnitude': 'Magnitud', 'depth': 'Profundidad (km)', 'tsunami_label': 'Riesgo de Tsunami'},
+            color_discrete_map={'Sin Riesgo': '#87CEEB', 'Con Riesgo': '#F44336'},
+            opacity=0.6
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
 
         # Distance to Ocean Analysis
         st.header("Análisis de Distancia al Océano")
         
         # Scatter plot: Distance to Ocean vs Tsunami Risk
         st.subheader("Distancia al Océano vs Riesgo de Tsunami")
-        fig = px.scatter(filtered_df, x='distance_to_ocean', y='magnitude', 
-                        color='tsunami', size='sig',
+        
+        # Preparar datos con tsunami como categórico
+        filtered_df_ocean = filtered_df.copy()
+        filtered_df_ocean['tsunami_label'] = filtered_df_ocean['tsunami'].map({0: 'Sin Riesgo', 1: 'Con Riesgo'})
+        
+        fig = px.scatter(filtered_df_ocean, x='distance_to_ocean', y='magnitude', 
+                        color='tsunami_label', size='sig',
                         title="Distancia al Océano vs Magnitud (Coloreado por Riesgo de Tsunami)",
-                        labels={'distance_to_ocean': 'Distancia al Océano (km)', 'magnitude': 'Magnitud'})
+                        labels={'distance_to_ocean': 'Distancia al Océano (km)', 'magnitude': 'Magnitud', 'tsunami_label': 'Riesgo de Tsunami'},
+                        color_discrete_map={'Sin Riesgo': '#87CEEB', 'Con Riesgo': '#F44336'})
         st.plotly_chart(fig)
         
         # Box plot: Distance to Ocean by Tsunami Risk
@@ -463,12 +560,642 @@ def main():
                     labels={'count': 'Número de Terremotos', 'distance_label': 'Distancia al Océano'})
         st.plotly_chart(fig)
 
-        # Section 5: Detailed Earthquake Table
-        st.header("Listado de Terremotos Encontrados")
-        st.dataframe(filtered_df[['magnitude', 'date_time', 'location', 'depth', 'tsunami', 'distance_to_ocean']].sort_values(by='date_time', ascending=False))
+        # Análisis de Localización Geográfica 3D
+        st.header("Distribución Espacial 3D de Eventos Sísmicos")
+        st.markdown("""
+        Este análisis muestra la **distribución geográfica tridimensional** de los sismos usando coordenadas cartesianas (x, y, z).
+        
+        **¿Por qué es importante?** El modelo identificó que la **localización** es la variable más importante 
+        para predecir tsunamis (38.6% de importancia). Este gráfico visualiza cómo los sismos con riesgo de tsunami 
+        se concentran en zonas específicas del planeta (anillos de fuego, zonas de subducción).
+        """)
+        
+        # Preparar datos con coordenadas cartesianas
+        df_3d = filtered_df.copy()
+        
+        # Convertir coordenadas geográficas a cartesianas
+        lat_rad = np.deg2rad(df_3d['latitude'])
+        lon_rad = np.deg2rad(df_3d['longitude'])
+        R = 6371  # Radio de la Tierra en km
+        
+        df_3d['x'] = R * np.cos(lat_rad) * np.cos(lon_rad)
+        df_3d['y'] = R * np.cos(lat_rad) * np.sin(lon_rad)
+        df_3d['z'] = R * np.sin(lat_rad)
+        df_3d['tsunami_label'] = df_3d['tsunami'].map({0: 'Sin Riesgo', 1: 'Con Riesgo'})
+        
+        # Tomar una muestra para mejor visualización (todos los tsunamis + muestra de no-tsunamis)
+        df_tsunamis = df_3d[df_3d['tsunami'] == 1]
+        df_no_tsunamis = df_3d[df_3d['tsunami'] == 0].sample(n=min(2000, len(df_3d[df_3d['tsunami'] == 0])), random_state=42)
+        df_3d_sample = pd.concat([df_tsunamis, df_no_tsunamis])
+        
+        # Crear gráfico 3D interactivo
+        fig_3d = px.scatter_3d(
+            df_3d_sample,
+            x='x',
+            y='y',
+            z='z',
+            color='tsunami_label',
+            color_discrete_map={'Sin Riesgo': '#87CEEB', 'Con Riesgo': '#F44336'},
+            hover_data={
+                'latitude': ':.2f',
+                'longitude': ':.2f',
+                'magnitude': ':.1f',
+                'depth': ':.1f',
+                'x': ':.0f',
+                'y': ':.0f',
+                'z': ':.0f'
+            },
+            title='Distribución Espacial 3D de Eventos Sísmicos (Coordenadas Cartesianas)',
+            labels={
+                'x': 'Coordenada X (km)',
+                'y': 'Coordenada Y (km)',
+                'z': 'Coordenada Z (km)',
+                'tsunami_label': 'Riesgo de Tsunami'
+            }
+        )
+        
+        # Agregar esfera representando la Tierra
+        u = np.linspace(0, 2 * np.pi, 50)
+        v = np.linspace(0, np.pi, 50)
+        x_sphere = R * np.outer(np.cos(u), np.sin(v))
+        y_sphere = R * np.outer(np.sin(u), np.sin(v))
+        z_sphere = R * np.outer(np.ones(np.size(u)), np.cos(v))
+        
+        fig_3d.add_trace(go.Surface(
+            x=x_sphere,
+            y=y_sphere,
+            z=z_sphere,
+            opacity=0.15,
+            colorscale=[[0, 'lightgray'], [1, 'lightgray']],
+            showscale=False,
+            name='Superficie Tierra',
+            hoverinfo='skip'
+        ))
+        
+        # Configurar layout
+        fig_3d.update_layout(
+            scene=dict(
+                xaxis_title='X (km)',
+                yaxis_title='Y (km)',
+                zaxis_title='Z (km)',
+                aspectmode='data',
+                camera=dict(
+                    eye=dict(x=1.5, y=1.5, z=1.2)
+                )
+            ),
+            height=700,
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            ),
+            paper_bgcolor='white',
+            plot_bgcolor='white',
+            margin=dict(l=0, r=0, t=60, b=0)
+        )
+        
+        # Agregar borde al gráfico
+        fig_3d.update_xaxes(showline=True, linewidth=1, linecolor='lightgray', mirror=True)
+        fig_3d.update_yaxes(showline=True, linewidth=1, linecolor='lightgray', mirror=True)
+        
+        st.plotly_chart(fig_3d, use_container_width=True)
+        
+        st.caption(f"""
+        Interacción: Rota arrastrando, zoom con rueda del mouse, hover para detalles | 
+        Datos: {len(df_3d_sample):,} eventos ({len(df_tsunamis):,} con riesgo + {len(df_no_tsunamis):,} muestra sin riesgo)
+        """)
+
+        # Visualización complementaria: Globo Terráqueo
+        st.markdown("---")
+        st.subheader("🌍 Vista de Globo Terráqueo Interactivo")
+        st.markdown("""
+        Esta visualización complementaria presenta los mismos datos en un globo terráqueo interactivo, 
+        ofreciendo una perspectiva más intuitiva de la distribución geográfica de los eventos sísmicos 
+        y su relación con el riesgo de tsunami.
+        """)
+        
+        # Preparar datos para el globo
+        df_globe = filtered_df.copy()
+        df_globe['tsunami_label'] = df_globe['tsunami'].map({0: 'Sin Riesgo', 1: 'Con Riesgo'})
+        
+        # Tomar muestra (todos los tsunamis + muestra de no-tsunamis)
+        df_tsunamis_globe = df_globe[df_globe['tsunami'] == 1]
+        df_no_tsunamis_globe = df_globe[df_globe['tsunami'] == 0].sample(
+            n=min(3000, len(df_globe[df_globe['tsunami'] == 0])), 
+            random_state=42
+        )
+        df_globe_sample = pd.concat([df_tsunamis_globe, df_no_tsunamis_globe])
+        
+        # Crear figura con globo terráqueo
+        fig_globe = go.Figure()
+        
+        # Agregar eventos SIN riesgo de tsunami
+        fig_globe.add_trace(go.Scattergeo(
+            lon=df_no_tsunamis_globe['longitude'],
+            lat=df_no_tsunamis_globe['latitude'],
+            text=df_no_tsunamis_globe.apply(
+                lambda row: f"<b>Sin Riesgo</b><br>" +
+                            f"Magnitud: {row['magnitude']:.1f}<br>" +
+                            f"Profundidad: {row['depth']:.1f} km<br>" +
+                            f"Lat: {row['latitude']:.2f}°, Lon: {row['longitude']:.2f}°<br>" +
+                            f"Ubicación: {row['location']}",
+                axis=1
+            ),
+            mode='markers',
+            marker=dict(
+                size=4,
+                color='#87CEEB',
+                line=dict(width=0.5, color='white'),
+                opacity=0.7
+            ),
+            name='Sin Riesgo',
+            hovertemplate='%{text}<extra></extra>'
+        ))
+        
+        # Agregar eventos CON riesgo de tsunami (más visibles)
+        fig_globe.add_trace(go.Scattergeo(
+            lon=df_tsunamis_globe['longitude'],
+            lat=df_tsunamis_globe['latitude'],
+            text=df_tsunamis_globe.apply(
+                lambda row: f"<b>⚠️ Con Riesgo</b><br>" +
+                            f"Magnitud: {row['magnitude']:.1f}<br>" +
+                            f"Profundidad: {row['depth']:.1f} km<br>" +
+                            f"Lat: {row['latitude']:.2f}°, Lon: {row['longitude']:.2f}°<br>" +
+                            f"Ubicación: {row['location']}",
+                axis=1
+            ),
+            mode='markers',
+            marker=dict(
+                size=8,
+                color='#F44336',
+                line=dict(width=1, color='white'),
+                opacity=0.9
+            ),
+            name='Con Riesgo',
+            hovertemplate='%{text}<extra></extra>'
+        ))
+        
+        # Configurar el globo terráqueo
+        fig_globe.update_geos(
+            projection_type="orthographic",
+            showcountries=True,
+            countrycolor="lightgray",
+            showcoastlines=True,
+            coastlinecolor="gray",
+            showland=True,
+            landcolor="rgb(243, 243, 243)",
+            showocean=True,
+            oceancolor="rgb(204, 229, 255)",
+            showlakes=True,
+            lakecolor="rgb(204, 229, 255)",
+            projection_rotation=dict(lon=0, lat=20, roll=0),
+            center=dict(lon=0, lat=0)
+        )
+        
+        # Configurar layout
+        fig_globe.update_layout(
+            title=dict(
+                text='Distribución Global de Eventos Sísmicos',
+                font=dict(size=16, color='#333333')
+            ),
+            width=1000,
+            height=800,
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="right",
+                x=0.99,
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                bordercolor="gray",
+                borderwidth=1
+            ),
+            paper_bgcolor='white',
+            margin=dict(l=10, r=10, t=50, b=10)
+        )
+        
+        # Agregar borde al contenedor del gráfico
+        fig_globe.update_geos(
+            bgcolor='white',
+            framecolor='lightgray',
+            framewidth=1
+        )
+        
+        st.plotly_chart(fig_globe, use_container_width=True)
+        
+        st.caption(f"""
+        Datos: {len(df_globe_sample):,} eventos ({len(df_tsunamis_globe):,} con riesgo, {len(df_no_tsunamis_globe):,} sin riesgo) | 
+        Interacción: Arrastra para rotar, zoom con rueda, hover para detalles, click en leyenda para filtrar
+        """)
+
+        # Análisis de Tipo de Magnitud (37.5% importancia)
+        st.markdown("---")
+        st.header("Relación entre Tipo de Magnitud y Riesgo de Tsunami")
+        st.markdown("""
+        El análisis de importancia de variables reveló que el **tipo de magnitud representa el 37.5% de la importancia** 
+        en el modelo de predicción. Este gráfico muestra cómo diferentes escalas de medición de magnitud sísmica 
+        (Richter, Momento, Ondas de Cuerpo, etc.) se correlacionan con la probabilidad de tsunami.
+        
+        El **Score Normalizado** combina el porcentaje de tsunamis con el volumen total de eventos, identificando 
+        qué tipos de magnitud son más confiables como predictores.
+        """)
+        
+        # Preparar datos para análisis de magType
+        df_magnitude_analysis = filtered_df.copy()
+        df_magnitude_analysis['tsunami_label'] = df_magnitude_analysis['tsunami'].map({0: 'Sin Tsunami', 1: 'Con Tsunami'})
+        
+        # Calcular estadísticas
+        total_by_magnitude = df_magnitude_analysis.groupby('magType').size().reset_index(name='total')
+        tsunami_by_magnitude = df_magnitude_analysis[df_magnitude_analysis['tsunami'] == 1].groupby('magType').size().reset_index(name='tsunami_count')
+        
+        magnitude_summary = total_by_magnitude.merge(tsunami_by_magnitude, on='magType', how='left')
+        magnitude_summary['tsunami_count'] = magnitude_summary['tsunami_count'].fillna(0)
+        magnitude_summary['tsunami_pct'] = (magnitude_summary['tsunami_count'] / magnitude_summary['total'] * 100).round(2)
+        
+        # Calcular scores normalizados para ambas categorías
+        magnitude_summary['normalized_score'] = magnitude_summary['tsunami_pct'] * np.log10(magnitude_summary['total'] + 1)
+        magnitude_summary['normalized_score'] = (magnitude_summary['normalized_score'] / magnitude_summary['normalized_score'].max() * 100).round(2)
+        
+        magnitude_summary['no_tsunami_count'] = magnitude_summary['total'] - magnitude_summary['tsunami_count']
+        magnitude_summary['no_tsunami_pct'] = ((magnitude_summary['no_tsunami_count'] / magnitude_summary['total']) * 100).round(2)
+        magnitude_summary['no_tsunami_normalized_score'] = magnitude_summary['no_tsunami_pct'] * np.log10(magnitude_summary['total'] + 1)
+        magnitude_summary['no_tsunami_normalized_score'] = (magnitude_summary['no_tsunami_normalized_score'] / magnitude_summary['no_tsunami_normalized_score'].max() * 100).round(2)
+        
+        # Preparar datos en formato largo
+        data_tsunami_bar = magnitude_summary[['magType', 'normalized_score', 'total', 'tsunami_count', 'tsunami_pct']].copy()
+        data_tsunami_bar['category'] = 'Con Tsunami'
+        data_tsunami_bar['score'] = data_tsunami_bar['normalized_score']
+        data_tsunami_bar = data_tsunami_bar.rename(columns={'tsunami_count': 'count', 'tsunami_pct': 'pct'})
+        
+        data_no_tsunami_bar = magnitude_summary[['magType', 'no_tsunami_normalized_score', 'total', 'no_tsunami_count', 'no_tsunami_pct']].copy()
+        data_no_tsunami_bar['category'] = 'Sin Tsunami'
+        data_no_tsunami_bar['score'] = data_no_tsunami_bar['no_tsunami_normalized_score']
+        data_no_tsunami_bar = data_no_tsunami_bar.rename(columns={'no_tsunami_count': 'count', 'no_tsunami_pct': 'pct'})
+        
+        data_combined = pd.concat([data_tsunami_bar, data_no_tsunami_bar], ignore_index=True)
+        
+        # Selector interactivo
+        selection_bar = alt.selection_point(
+            fields=['category'],
+            bind='legend',
+            value=[{'category': 'Con Tsunami'}, {'category': 'Sin Tsunami'}]
+        )
+        
+        # Gráfico de barras agrupadas
+        chart_combined = alt.Chart(data_combined).mark_bar().encode(
+            x=alt.X('score:Q', 
+                    title='Score Normalizado (% × log(Total Eventos))',
+                    scale=alt.Scale(domain=[0, 105])),
+            y=alt.Y('magType:N', 
+                    sort=alt.EncodingSortField(field='score', op='max', order='descending'),
+                    title='Tipo de Magnitud'),
+            color=alt.Color('category:N',
+                            title='Tipo de Evento',
+                            scale=alt.Scale(
+                                domain=['Con Tsunami', 'Sin Tsunami'],
+                                range=['#F44336', '#87CEEB']
+                            )),
+            yOffset=alt.YOffset('category:N'),
+            opacity=alt.condition(selection_bar, alt.value(0.9), alt.value(0.2)),
+            tooltip=[
+                alt.Tooltip('magType:N', title='Tipo de Magnitud'),
+                alt.Tooltip('category:N', title='Categoría'),
+                alt.Tooltip('score:Q', title='Score Normalizado', format='.2f'),
+                alt.Tooltip('total:Q', title='Total Eventos', format=','),
+                alt.Tooltip('count:Q', title='Cantidad', format=','),
+                alt.Tooltip('pct:Q', title='Porcentaje', format='.2f')
+            ]
+        ).properties(
+            width=800,
+            height=500,
+            title='Score Normalizado por Tipo de Magnitud: Tsunami vs No Tsunami'
+        ).add_params(selection_bar)
+        
+        # Agregar etiquetas de score
+        text_combined = chart_combined.mark_text(
+            align='left',
+            baseline='middle',
+            dx=3,
+            fontSize=9,
+            fontWeight='bold'
+        ).encode(
+            text=alt.Text('score:Q', format='.1f'),
+            color=alt.Color('category:N', 
+                          scale=alt.Scale(
+                              domain=['Con Tsunami', 'Sin Tsunami'],
+                              range=['#F44336', '#87CEEB']
+                          ), 
+                          legend=None)
+        )
+        
+        chart_final = (chart_combined + text_combined).configure_axis(
+            labelFontSize=11,
+            titleFontSize=13
+        ).configure_title(
+            fontSize=16,
+            anchor='start'
+        ).configure_legend(
+            titleFontSize=12,
+            labelFontSize=11
+        )
+        
+        st.altair_chart(chart_final, use_container_width=True)
+        
+        st.caption("""
+        Interacción: Click en la leyenda para mostrar/ocultar categorías, hover para ver detalles
+        """)
+        
+        # Mostrar tabla resumen
+        with st.expander("📊 Ver Tabla Resumen de Tipos de Magnitud"):
+            summary_display = magnitude_summary[['magType', 'total', 'tsunami_count', 'tsunami_pct']].copy()
+            summary_display.columns = ['Tipo de Magnitud', 'Total Eventos', 'Con Tsunami', '% Tsunami']
+            summary_display = summary_display.sort_values('% Tsunami', ascending=False)
+            st.dataframe(summary_display, use_container_width=True, hide_index=True)
+            
+            st.markdown("**🔍 Interpretación:**")
+            top_3 = summary_display.head(3)
+            for idx, row in top_3.iterrows():
+                st.write(f"- **{row['Tipo de Magnitud']}**: {row['% Tsunami']:.2f}% de probabilidad de tsunami ({int(row['Con Tsunami'])} de {int(row['Total Eventos'])} eventos)")
+
+        # Gráfico Polar complementario
+        st.markdown("---")
+        st.subheader("Vista Polar: Comparación por Tipo de Magnitud")
+        st.markdown("""
+        Esta visualización polar ofrece una perspectiva alternativa de los datos, 
+        facilitando la comparación visual de scores entre diferentes tipos de magnitud 
+        en un formato radial.
+        """)
+        
+        # Preparar datos para gráfico polar
+        n_types = len(magnitude_summary)
+        magnitude_summary_polar = magnitude_summary.copy()
+        magnitude_summary_polar['theta_index'] = range(n_types)
+        
+        # Crear datasets para barras polares
+        data_tsunami_polar = magnitude_summary_polar[['magType', 'theta_index', 'normalized_score', 'total', 'tsunami_count', 'tsunami_pct']].copy()
+        data_tsunami_polar['category'] = 'Con Tsunami'
+        data_tsunami_polar['score'] = data_tsunami_polar['normalized_score']
+        data_tsunami_polar = data_tsunami_polar.rename(columns={'tsunami_count': 'count', 'tsunami_pct': 'pct'})
+        
+        data_no_tsunami_polar = magnitude_summary_polar[['magType', 'theta_index', 'no_tsunami_normalized_score', 'total', 'no_tsunami_count', 'no_tsunami_pct']].copy()
+        data_no_tsunami_polar['category'] = 'Sin Tsunami'
+        data_no_tsunami_polar['score'] = data_no_tsunami_polar['no_tsunami_normalized_score']
+        data_no_tsunami_polar = data_no_tsunami_polar.rename(columns={'no_tsunami_count': 'count', 'no_tsunami_pct': 'pct'})
+        
+        # Combinar datasets
+        data_polar = pd.concat([data_tsunami_polar, data_no_tsunami_polar], ignore_index=True)
+        
+        # Selector interactivo
+        selection_polar = alt.selection_point(
+            fields=['category'],
+            bind='legend',
+            value=[{'category': 'Con Tsunami'}, {'category': 'Sin Tsunami'}]
+        )
+        
+        # Crear barras polares con mark_arc
+        polar_bars = alt.Chart(data_polar).mark_arc(stroke='white', tooltip=True).encode(
+            theta=alt.Theta('theta_index:O', title=None),
+            radius=alt.Radius('score:Q', title=None).scale(type='linear', domain=[0, 100]),
+            radius2=alt.datum(5),
+            color=alt.Color('category:N',
+                            title='Tipo de Evento',
+                            scale=alt.Scale(
+                                domain=['Con Tsunami', 'Sin Tsunami'],
+                                range=['#F44336', '#87CEEB']
+                            )),
+            opacity=alt.condition(selection_polar, alt.value(0.9), alt.value(0.2)),
+            tooltip=[
+                alt.Tooltip('magType:N', title='Tipo de Magnitud'),
+                alt.Tooltip('category:N', title='Categoría'),
+                alt.Tooltip('score:Q', title='Score Normalizado', format='.2f'),
+                alt.Tooltip('total:Q', title='Total Eventos', format=','),
+                alt.Tooltip('count:Q', title='Cantidad', format=','),
+                alt.Tooltip('pct:Q', title='Porcentaje', format='.2f')
+            ],
+            order=alt.Order('category:N')
+        ).add_params(selection_polar)
+        
+        # Anillos de referencia
+        axis_rings = alt.Chart(pd.DataFrame({'ring': [25, 50, 75, 100]})).mark_arc(
+            stroke='lightgrey', 
+            fill=None,
+            strokeWidth=1
+        ).encode(
+            theta=alt.value(2 * np.pi),
+            radius=alt.Radius('ring:Q').stack(False)
+        )
+        
+        # Etiquetas de los anillos
+        axis_rings_labels = axis_rings.mark_text(
+            color='grey',
+            radiusOffset=5,
+            align='left',
+            fontSize=9
+        ).encode(
+            text=alt.Text('ring:Q', format='d'),
+            theta=alt.value(np.pi / 4)
+        )
+        
+        # Líneas radiales
+        axis_lines = alt.Chart(magnitude_summary_polar).mark_arc(
+            stroke='lightgrey',
+            fill=None,
+            strokeWidth=0.5
+        ).encode(
+            theta=alt.Theta('theta_index:O'),
+            radius=alt.value(100),
+            radius2=alt.datum(5)
+        )
+        
+        # Etiquetas de tipos de magnitud
+        axis_labels = alt.Chart(magnitude_summary_polar).mark_text(
+            color='#333333',
+            radiusOffset=10,
+            fontSize=10,
+            fontWeight='bold',
+            align=alt.expr(
+                'datum.theta_index < ' + str(n_types//4) + ' ? "left" : ' +
+                'datum.theta_index > ' + str(3*n_types//4) + ' ? "right" : "center"'
+            ),
+            baseline=alt.expr(
+                'datum.theta_index == 0 ? "bottom" : ' +
+                'datum.theta_index == ' + str(n_types//2) + ' ? "top" : "middle"'
+            )
+        ).encode(
+            theta=alt.Theta('theta_index:O'),
+            radius=alt.value(100),
+            text='magType:N'
+        )
+        
+        # Combinar todos los elementos
+        polar_chart = alt.layer(
+            axis_rings,
+            axis_lines,
+            polar_bars,
+            axis_rings_labels,
+            axis_labels
+        ).properties(
+            width=700,
+            height=700,
+            title='Gráfico Polar: Score Normalizado por Tipo de Magnitud'
+        ).configure_view(
+            strokeWidth=0
+        ).configure_title(
+            fontSize=16,
+            anchor='start'
+        )
+        
+        st.altair_chart(polar_chart, use_container_width=True)
+        
+        st.caption("""
+        Interacción: Click en leyenda para filtrar, hover para detalles | Valores normalizados 0-100 | Cada segmento = tipo de magnitud
+        """)
+
+    # Model Analysis Tab
+    with tab2:
+        st.header("Análisis de Modelos de Predicción")
+        st.write("Esta sección muestra el análisis y comparación de diferentes modelos de predicción de tsunamis.")
+        
+        # Introducción
+        st.markdown("""
+        Se evaluaron **9 modelos de Machine Learning** diferentes para predecir el riesgo de tsunami:
+        - **3 modelos base:** Logistic Regression, Random Forest y Support Vector Classifier (SVC)
+        - **3 modelos optimizados con GridSearch:** Con ajuste de hiperparámetros
+        - **3 modelos con SMOTEENN:** Con balanceo de clases para manejar el desbalance de datos
+        """)
+        
+        # Sección 1: Modelos Básicos
+        st.markdown("---")
+        st.header("Modelos Básicos")
+        st.markdown("""
+        Estos son los modelos entrenados con configuraciones predeterminadas, sin optimización de hiperparámetros.
+        """)
+        
+        # Mostrar imagen de matrices de modelos básicos
+        try:
+            st.image("images/matrices_modelos_basicos.png", 
+                     caption="Matrices de Confusión - Modelos Básicos",
+                     use_container_width=True)
+        except:
+            st.warning("Imagen no disponible: matrices_modelos_basicos.png")
+        
+        # Análisis de modelos básicos
+        st.subheader("Análisis de Modelos Básicos")
+        st.markdown("""
+             
+        **Conclusión:** Random Forest muestra el mejor desempeño inicial, sugiriendo que las relaciones entre 
+        variables sísmicas y riesgo de tsunami son complejas y no lineales.
+        """)
+        
+        # Sección 2: Modelos con GridSearch
+        st.markdown("---")
+        st.header("Modelos Optimizados con GridSearch")
+        st.markdown("""
+        Estos modelos fueron optimizados mediante búsqueda exhaustiva de hiperparámetros usando **GridSearchCV**.
+        El objetivo es encontrar la mejor combinación de parámetros para maximizar el F1-Score.
+        """)
+        
+        # Mostrar imagen de matrices con GridSearch
+        try:
+            st.image("images/matrices_gridsearch.png", 
+                     caption="Matrices de Confusión - Modelos Optimizados (GridSearch)",
+                     use_container_width=True)
+        except:
+            st.warning("Imagen no disponible: matrices_gridsearch.png")
+        
+        # Análisis de modelos con GridSearch
+        st.subheader("Análisis de Modelos con GridSearch")
+        st.markdown("""
+        **Hiperparámetros optimizados:**
+        
+        - **Logistic Regression:** `C=10`, `solver='lbfgs'`
+        - **Random Forest:** `n_estimators=200`, `max_depth=None`, `min_samples_split=2`
+        - **SVC:** `C=10`, `kernel='rbf'`, `gamma='scale'`
+                       
+        ** Problema crítico con GridSearch:** Aunque optimiza el F1-Score, aún deja 
+        demasiados **falsos negativos** (tsunamis no detectados). En un sistema de alerta 
+        de tsunamis, NO DETECTAR un tsunami es catastrófico.
+        """)
+        
+        # Sección 3: Modelos con SMOTEENN
+        st.markdown("---")
+        st.header("Modelos con SMOTEENN")
+        st.markdown("""
+        **SMOTEENN (SMOTE + Edited Nearest Neighbors)** es una técnica de balanceo que combina:
+        - **SMOTE:** Genera muestras sintéticas de la clase minoritaria (tsunamis)
+        - **ENN:** Limpia ejemplos ruidosos de ambas clases
+        
+        Esto aborda el problema de **desbalance de clases** (solo 3.6% de eventos tienen tsunami).
+        """)
+        
+        # Mostrar imagen de matrices con SMOTEENN
+        try:
+            st.image("images/matrices_smoteenn.png", 
+                     caption="Matrices de Confusión - Modelos con SMOTEENN",
+                     use_container_width=True)
+        except:
+            st.warning("Imagen no disponible: matrices_smoteenn.png")
+        
+        # Análisis de modelos con SMOTEENN
+        st.subheader("Análisis de Modelos con SMOTEENN")
+        st.markdown("""
+                
+        **Conclusión CRÍTICA:** En sistemas de alerta de tsunamis, **Random Forest + SMOTEENN** 
+        es SUPERIOR porque minimiza falsos negativos (tsunamis no detectados) a costa de 
+        algunos falsos positivos más. Este es el trade-off correcto para salvar vidas.
+        """)
+        
+        # Sección 4: Importancia de Variables
+        st.markdown("---")
+        st.header("Importancia de Variables en el Modelo Elegido")
+        st.markdown("""
+        El modelo **Random Forest + SMOTEENN** identifica qué variables son más importantes 
+        para predecir el riesgo de tsunami. Esto nos ayuda a entender qué factores sísmicos 
+        son más relevantes en la generación de tsunamis.
+        """)
+        
+        # Mostrar imagen de importancia de variables
+        try:
+            st.image("images/importancia_variables.png", 
+                     caption="Importancia de Variables - Random Forest + SMOTEENN",
+                     use_container_width=True)
+        except:
+            st.warning("Imagen no disponible: importancia_variables.png")
+        
+        # Análisis de importancia de variables
+        st.subheader("Análisis de Importancia")
+        st.markdown("""
+        **Top 3 Variables Más Importantes:**
+        
+        1. **Localización (38.6%):** La ubicación geográfica del sismo (coordenadas x, y, z) 
+           es el factor más importante. Ciertos puntos del planeta (zonas de subducción, 
+           fosas oceánicas) tienen mayor probabilidad de generar tsunamis.
+        
+        2. **Tipo de Magnitud (37.5%):** El método usado para medir la magnitud (`magnitude_type`) 
+           es casi tan importante como la ubicación. Tipos como `mww` (momento sísmico) son 
+           más relevantes para tsunamis que otros como `mb` (ondas internas).
+        
+        3. **Distancia al Océano (12.1%):** Sismos más cercanos a la costa tienen mayor 
+           probabilidad de generar tsunamis. Esta variable es crítica para el modelo.
+        
+        **Observaciones Clave:**
+        - Las **top 5 variables explican el 99.88%** de la importancia total
+        - La **magnitud en sí** (8.3%) es menos importante que el tipo de magnitud
+        - La **profundidad** (3.3%) tiene impacto menor de lo esperado
+        - El **tipo de evento** (0.1%) es casi irrelevante (la mayoría son terremotos)
+        
+        **Conclusión:** La ubicación y el tipo de magnitud son los factores dominantes. 
+        Esto confirma que no todos los sismos grandes generan tsunamis, sino que depende 
+        de **dónde** ocurren y **cómo** se mide su magnitud.
+        """)
+        
+        st.markdown("---")
+        st.caption("Análisis basado en 20,000 eventos sísmicos con 3.6% de incidencia de tsunami")
 
     # Tsunami Prediction Tab
-    with tab2:
+    with tab3:
         st.header("Predicción de Riesgo de Tsunami")
         st.write("Modelo Random Forest con SMOTEENN")
         
@@ -509,21 +1236,24 @@ def main():
         # Mostrar mapa y capturar clics
         map_data = st_folium(m, width=700, height=400)
         
-        # Actualizar coordenadas si se hizo clic en el mapa
+        # Guardar temporalmente las coordenadas del último clic
         if map_data is not None and map_data.get('last_clicked') is not None:
-            clicked_lat = map_data['last_clicked']['lat']
-            clicked_lon = map_data['last_clicked']['lng']
-            
-            # Asegurarse de que los valores estén dentro del rango válido
-            clicked_lat = max(-90.0, min(90.0, clicked_lat))
-            clicked_lon = max(-180.0, min(180.0, clicked_lon))
-            
-            # Solo actualizar si los valores han cambiado significativamente
-            if (abs(clicked_lat - st.session_state.selected_lat) > 0.001 or 
-                abs(clicked_lon - st.session_state.selected_lon) > 0.001):
+            st.session_state.temp_lat = map_data['last_clicked']['lat']
+            st.session_state.temp_lon = map_data['last_clicked']['lng']
+        
+        # Botón para confirmar la ubicación seleccionada
+        if st.button("✅ Confirmar Ubicación", type="primary"):
+            if 'temp_lat' in st.session_state and 'temp_lon' in st.session_state:
+                # Asegurarse de que los valores estén dentro del rango válido
+                clicked_lat = max(-90.0, min(90.0, st.session_state.temp_lat))
+                clicked_lon = max(-180.0, min(180.0, st.session_state.temp_lon))
+                
                 st.session_state.selected_lat = clicked_lat
                 st.session_state.selected_lon = clicked_lon
+                st.success(f"📍 Ubicación confirmada: Lat {clicked_lat:.4f}, Lon {clicked_lon:.4f}")
                 st.rerun()
+            else:
+                st.warning("⚠️ Por favor, haz clic en el mapa primero")
         
         st.subheader("Ingresar datos del sismo")
         
