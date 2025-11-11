@@ -499,6 +499,7 @@ def main():
         # Pie chart for continents
         continent_counts = continent_country_df.groupby('continent')['count'].sum().reset_index()
         fig = px.pie(continent_counts, values='count', names='continent')
+        fig.update_layout(paper_bgcolor='white', plot_bgcolor='white')
         st.plotly_chart(fig)
 
         # Section 4: Magnitude Insights
@@ -507,6 +508,7 @@ def main():
         # Histogram for magnitude frequencies
         st.subheader("Frecuencia de Diferentes Magnitudes")
         fig = px.histogram(filtered_df, x='magnitude', nbins=20, title="Distribución de Frecuencia de Magnitud")
+        fig.update_layout(paper_bgcolor='white', plot_bgcolor='white')
         st.plotly_chart(fig)
 
         # Depth vs. Magnitude Analysis
@@ -529,6 +531,7 @@ def main():
             color_discrete_map={'Sin Riesgo': '#87CEEB', 'Con Riesgo': '#F44336'},
             opacity=0.6
         )
+        fig_scatter.update_layout(paper_bgcolor='white', plot_bgcolor='white')
         st.plotly_chart(fig_scatter, use_container_width=True)
 
         # Distance to Ocean Analysis
@@ -546,6 +549,7 @@ def main():
                         title="Distancia al Océano vs Magnitud (Coloreado por Riesgo de Tsunami)",
                         labels={'distance_to_ocean': 'Distancia al Océano (km)', 'magnitude': 'Magnitud', 'tsunami_label': 'Riesgo de Tsunami'},
                         color_discrete_map={'Sin Riesgo': '#87CEEB', 'Con Riesgo': '#F44336'})
+        fig.update_layout(paper_bgcolor='white', plot_bgcolor='white')
         st.plotly_chart(fig)
         
         # Box plot: Distance to Ocean by Tsunami Risk
@@ -558,6 +562,7 @@ def main():
                     orientation='h',
                     title="Cantidad de Terremotos por Distancia al Océano (intervalos de 50km)",
                     labels={'count': 'Número de Terremotos', 'distance_label': 'Distancia al Océano'})
+        fig.update_layout(paper_bgcolor='white', plot_bgcolor='white')
         st.plotly_chart(fig)
 
         # Análisis de Localización Geográfica 3D
