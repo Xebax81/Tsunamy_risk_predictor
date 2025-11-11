@@ -529,7 +529,6 @@ def main():
             color_discrete_map={'Sin Riesgo': '#87CEEB', 'Con Riesgo': '#F44336'},
             opacity=0.6
         )
-        fig_scatter.update_layout(paper_bgcolor='white', plot_bgcolor='white')
         st.plotly_chart(fig_scatter, use_container_width=True)
 
         # Distance to Ocean Analysis
@@ -547,7 +546,6 @@ def main():
                         title="Distancia al Océano vs Magnitud (Coloreado por Riesgo de Tsunami)",
                         labels={'distance_to_ocean': 'Distancia al Océano (km)', 'magnitude': 'Magnitud', 'tsunami_label': 'Riesgo de Tsunami'},
                         color_discrete_map={'Sin Riesgo': '#87CEEB', 'Con Riesgo': '#F44336'})
-        fig.update_layout(paper_bgcolor='white', plot_bgcolor='white')
         st.plotly_chart(fig)
         
         # Box plot: Distance to Ocean by Tsunami Risk
@@ -560,7 +558,6 @@ def main():
                     orientation='h',
                     title="Cantidad de Terremotos por Distancia al Océano (intervalos de 50km)",
                     labels={'count': 'Número de Terremotos', 'distance_label': 'Distancia al Océano'})
-        fig.update_layout(paper_bgcolor='white', plot_bgcolor='white')
         st.plotly_chart(fig)
 
         # Análisis de Localización Geográfica 3D
