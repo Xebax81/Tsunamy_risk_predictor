@@ -41,6 +41,7 @@ streamlit run app.py
 
 ```
 Tsunamy_risk_predictor/
+├── images/                     #carpeta para imagenes
 ├── app.py                      # Aplicación principal
 ├── requirements.txt            # Dependencias
 ├── Sismos_data.csv            # Dataset de terremotos
