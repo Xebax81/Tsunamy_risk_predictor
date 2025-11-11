@@ -499,7 +499,6 @@ def main():
         # Pie chart for continents
         continent_counts = continent_country_df.groupby('continent')['count'].sum().reset_index()
         fig = px.pie(continent_counts, values='count', names='continent')
-        fig.update_layout(paper_bgcolor='white', plot_bgcolor='white')
         st.plotly_chart(fig)
 
         # Section 4: Magnitude Insights
@@ -508,7 +507,6 @@ def main():
         # Histogram for magnitude frequencies
         st.subheader("Frecuencia de Diferentes Magnitudes")
         fig = px.histogram(filtered_df, x='magnitude', nbins=20, title="Distribución de Frecuencia de Magnitud")
-        fig.update_layout(paper_bgcolor='white', plot_bgcolor='white')
         st.plotly_chart(fig)
 
         # Depth vs. Magnitude Analysis
