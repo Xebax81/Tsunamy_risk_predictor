@@ -1313,25 +1313,12 @@ def main():
 - mb: Magnitud de ondas internas
                 """
             )
-            significance = st.number_input(
-                "Significancia",
-                min_value=0,
-                max_value=2000,
-                value=500,
-                step=10,
-                help="""**Índice de importancia del sismo:**
-
-• **0-200**: Sismos menores, poco significativos
-• **200-500**: Significancia moderada
-• **500-800**: Sismos importantes
-• **800-1200**: Muy significativos, posible daño regional
-• **>1200**: Extremadamente significativos, daño extenso
-
-La significancia combina magnitud, población afectada y ubicación.
-                """
-            )
         
         if st.button("Predecir Riesgo de Tsunami", type="primary"):
+            # Calcular significance automáticamente basado en magnitud y profundidad
+            # Fórmula aproximada: magnitud * 100 - profundidad (valores típicos 0-2000)
+            auto_significance = max(0, min(2000, magnitude * 100 - depth * 0.5))
+            
             # Create input dataframe with column names matching the training data
             input_data = pd.DataFrame({
                 'latitude': [latitude],
@@ -1339,7 +1326,7 @@ La significancia combina magnitud, población afectada y ubicación.
                 'magnitude': [magnitude],
                 'depth': [depth],
                 'magType': [magType],
-                'significance': [significance],
+                'significance': [auto_significance],
                 'id': [''],
                 'place': [''],
                 'network': [''],
@@ -1402,12 +1389,60 @@ La significancia combina magnitud, población afectada y ubicación.
                 )
                 st.plotly_chart(fig_proba, use_container_width=True)
                 
+                # Consejos de seguridad según el resultado
+                st.markdown("---")
+                st.subheader("Consejos de Seguridad")
+                
+                if prediction == 1:
+                    # Alto riesgo de tsunami
+                    st.warning("MEDIDAS DE EMERGENCIA - RIESGO ALTO")
+                    st.markdown("""
+                    **Acciones inmediatas recomendadas:**
+                    
+                    1. **Evacuación urgente:** Diríjase inmediatamente a zonas altas (mínimo 30 metros sobre el nivel del mar) o al menos 3 km tierra adentro.
+                    
+                    2. **Alertas oficiales:** Manténgase atento a las comunicaciones de las autoridades locales y sistemas de alerta de tsunami.
+                    
+                    3. **Rutas de escape:** Identifique las rutas de evacuación más cercanas y sígalas sin demora. No espere a ver el agua.
+                    
+                    4. **Lleve lo esencial:** Solo documentos importantes, medicamentos, agua y elementos de supervivencia básicos.
+                    
+                    5. **Ayude a otros:** Alerte a vecinos, especialmente a personas con movilidad reducida, niños y ancianos.
+                    
+                    6. **Evite la costa:** Aléjese de playas, puertos, bahías y desembocaduras de ríos. Las primeras olas pueden llegar en minutos.
+                    
+                    7. **No regrese:** Permanezca en zona segura hasta que las autoridades confirmen que el peligro ha pasado. Pueden ocurrir múltiples olas.
+                    
+                    **IMPORTANTE:** Los tsunamis pueden llegar en 10-30 minutos después de un sismo costero fuerte. Actúe de inmediato.
+                    """)
+                else:
+                    # Bajo riesgo de tsunami
+                    st.info("MEDIDAS PREVENTIVAS - RIESGO BAJO")
+                    st.markdown("""
+                    **Recomendaciones generales:**
+                    
+                    1. **Mantenga la calma:** Aunque el riesgo es bajo, es importante estar preparado ante cualquier eventualidad.
+                    
+                    2. **Monitoreo:** Siga las noticias y comunicados oficiales. Verifique si hay actualizaciones de las autoridades locales.
+                    
+                    3. **Preparación:** Si vive en zona costera, revise que su plan de evacuación familiar esté actualizado.
+                    
+                    4. **Inspección:** Si hubo un sismo, revise su hogar en busca de daños estructurales o fugas de gas.
+                    
+                    5. **Kit de emergencia:** Verifique que tenga agua, alimentos no perecederos, linterna, radio a pilas y botiquín.
+                    
+                    6. **Comunicación:** Mantenga su celular cargado y tenga a mano números de emergencia locales.
+                    
+                    7. **Precaución costera:** Aunque el riesgo es bajo, evite acercarse demasiado al mar inmediatamente después del sismo.
+                    
+                    **RECUERDE:** Incluso con riesgo bajo, mantener la preparación es fundamental en zonas sísmicas.
+                    """)
+                
                 # Show input summary
                 with st.expander("Ver detalles del sismo ingresado"):
                     st.write(f"**Ubicación:** Lat {latitude}°, Lon {longitude}°")
                     st.write(f"**Magnitud:** {magnitude} ({magType})")
                     st.write(f"**Profundidad:** {depth} km")
-                    st.write(f"**Significancia:** {significance}")
                 
             except Exception as e:
                 st.error(f"Error al realizar la predicción: {str(e)}")
